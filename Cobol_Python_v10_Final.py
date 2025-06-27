@@ -31,9 +31,6 @@ if sys.platform.startswith('win'):
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('ssh_tool')
 
-# URL padrão de atualização
-DEFAULT_UPDATE_URL = "https://raw.githubusercontent.com/seu-usuario/seu-repositorio/main/version.json"
-
 class InteractiveHostKeyPolicy(paramiko.MissingHostKeyPolicy):
     """Política interativa para verificação de host keys com opção de lembrar permanentemente"""
     def __init__(self, root, port=22):
@@ -139,8 +136,8 @@ class SSHClientGUI:
         self.root = root
         self.root.title(f"Gerenciador SSH Avançado v{SOFTWARE_VERSION}")
         
-        # Tamanho inicial aumentado para melhor visualização
-        self.root.geometry("950x600")
+        # Posicionar no topo da tela
+        self.root.geometry("950x600+0+0")
         
         # Configuração de expansão para a janela principal
         self.root.rowconfigure(0, weight=1)
@@ -164,6 +161,16 @@ class SSHClientGUI:
             'users': ['root', 'zabbix', 'sshd', 'postfix', 'nscd', 'message+', 'usertra+'],
             'commands': []  # Pode ser estendido
         }
+        
+        # Configuração de senha e URL de atualização
+        self.admin_config_file = os.path.join(os.path.expanduser("~"), ".ssh_tool_config")
+        # Senha master padrão
+        self.DEFAULT_MASTER_PASSWORD = "12345678"
+        # URL padrão de atualização
+        self.DEFAULT_UPDATE_URL = "https://raw.githubusercontent.com/seu-usuario/seu-repositorio/main/version.json"
+        
+        # Carregar configuração do administrador
+        self.admin_config = self.load_admin_config()
         
         # Configurar estilo visual moderno
         self.style = ttk.Style()
@@ -262,13 +269,14 @@ class SSHClientGUI:
         btn_frame = ttk.Frame(conn_frame)
         btn_frame.grid(row=0, column=8, padx=(10,3), pady=2, sticky=tk.E)
         
+        # Aumentar largura dos botões para acomodar texto completo
         self.connect_btn = ttk.Button(btn_frame, text="Conectar", 
-                                     command=self.connect, style='Green.TButton', width=9)
+                                     command=self.connect, style='Green.TButton', width=12)
         self.connect_btn.pack(side=tk.LEFT, padx=2)
         
         self.disconnect_btn = ttk.Button(btn_frame, text="Desconectar", 
                                         command=self.disconnect, state=tk.DISABLED,
-                                        style='Red.TButton', width=10)
+                                        style='Red.TButton', width=14)
         self.disconnect_btn.pack(side=tk.LEFT, padx=2)
         
         # Botão Administração
@@ -277,7 +285,7 @@ class SSHClientGUI:
             text="Administrador",
             command=self.show_admin_dialog,
             style='Blue.TButton',
-            width=14
+            width=16
         )
         self.admin_btn.pack(side=tk.LEFT, padx=2)
         
@@ -286,7 +294,7 @@ class SSHClientGUI:
             btn_frame, 
             text="Ajuda?",
             command=self.show_help,
-            width=6
+            width=8
         )
         help_btn.pack(side=tk.LEFT, padx=2)
         
@@ -369,7 +377,7 @@ class SSHClientGUI:
             text="Derrubar PIDs Selecionados", 
             command=self.kill_pids, 
             style='Red.TButton',
-            width=20
+            width=24
         )
         self.kill_button.pack(side=tk.LEFT, padx=2)
         
@@ -466,7 +474,7 @@ class SSHClientGUI:
             text="Derrubar PIDs Selecionados", 
             command=self.derrubar_pid_selecionado,
             style='Red.TButton',
-            width=20
+            width=24
         )
         self.derrubar_pid_selecionado_btn.pack(side=tk.LEFT, padx=2)
         
@@ -569,7 +577,7 @@ class SSHClientGUI:
             text="Derrubar PIDs Selecionados", 
             command=self.derrubar_pid_tela,
             style='Red.TButton',
-            width=20
+            width=24
         )
         self.derrubar_pid_tela_btn.pack(side=tk.LEFT, padx=2)
         
@@ -730,15 +738,6 @@ class SSHClientGUI:
         self.matricula_output = ""
         self.capturing_tela = False
         self.tela_output = ""
-        
-        # Configuração de senha e URL de atualização
-        self.admin_config_file = os.path.join(os.path.expanduser("~"), ".ssh_tool_config")
-        
-        # DEFINIÇÕES DE CONSTANTES ANTES DE CARREGAR CONFIG (CORREÇÃO DO ERRO)
-        self.DEFAULT_UPDATE_URL = "https://raw.githubusercontent.com/seu-usuario/seu-repositorio/main/version.json"
-        self.DEFAULT_MASTER_PASSWORD = "Carro@#356074"  # Senha master padrão
-        
-        self.admin_config = self.load_admin_config()
 
     def load_admin_config(self):
         """Carrega a configuração do administrador do arquivo"""
@@ -830,6 +829,13 @@ class SSHClientGUI:
         top.transient(self.root)
         top.grab_set()
         
+        # Aplicar ícone se disponível
+        if self.temp_ico_file and os.path.exists(self.temp_ico_file):
+            try:
+                top.iconbitmap(self.temp_ico_file)
+            except Exception:
+                pass
+        
         # Frame principal
         main_frame = ttk.Frame(top, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -865,6 +871,8 @@ class SSHClientGUI:
         senha_entry = ttk.Entry(auth_frame, textvariable=self.senha_var, show="*", width=15)
         senha_entry.pack(side=tk.LEFT, padx=(0,5))
         senha_entry.focus_set()
+        # Adicionar evento Enter para validar senha
+        senha_entry.bind("<Return>", lambda event: check_password())
         
         def check_password():
             admin_type = self.admin_type_var.get()
@@ -1188,11 +1196,18 @@ class SSHClientGUI:
         help_window.transient(self.root)
         help_window.grab_set()
         
+        # Aplicar ícone se disponível
+        if self.temp_ico_file and os.path.exists(self.temp_ico_file):
+            try:
+                help_window.iconbitmap(self.temp_ico_file)
+            except Exception:
+                pass
+        
         # Frame principal
         main_frame = ttk.Frame(help_window)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Texto de ajuda
+        # Texto de ajuda atualizado
         instructions = (
             "INSTRUÇÕES DE USO - GERENCIADOR SSH AVANÇADO\n\n"
             "1. CONEXÃO:\n"
@@ -1203,15 +1218,18 @@ class SSHClientGUI:
             "   - Lista todos os processos ativos do servidor\n"
             "   - Filtros automáticos bloqueiam usuários críticos\n"
             "   - Use os filtros visíveis para refinar a busca\n"
-            "   - Selecione PIDs manualmente ou na tabela\n\n"
+            "   - Selecione PIDs manualmente ou na tabela\n"
+            "   - Pressione Enter no campo de PIDs para derrubar selecionados\n\n"
             "3. ABA 'DERRUBAR MATRÍCULA E ROMANEIO':\n"
             "   - Consulta processos relacionados a matrículas ou romaneios\n"
             "   - Busca em /d/work por arquivos com o padrão especificado\n"
-            "   - Resultados mostrados em tabela com usuário, PID e nome\n\n"
+            "   - Resultados mostrados em tabela com usuário, PID e nome\n"
+            "   - Pressione Enter no campo de consulta para iniciar busca\n\n"
             "4. ABA 'CONSULTAR TELA':\n"
             "   - Consulta processos por número de tela ou romaneio\n"
             "   - Busca em /d/dados por arquivos com o padrão especificado\n"
-            "   - Use '*' para listar todas as telas/romaneios\n\n"
+            "   - Use '*' para listar todas as telas/romaneios\n"
+            "   - Pressione Enter no campo de consulta para iniciar busca\n\n"
             "5. ABA 'TERMINAL INTERATIVO':\n"
             "   - Sessão SSH interativa em tempo real\n"
             "   - Execute comandos diretamente no servidor\n"
@@ -1222,6 +1240,7 @@ class SSHClientGUI:
             "7. BOTÃO 'ADMINISTRADOR':\n"
             "   - Configura filtros permanentes de usuários/comandos\n"
             "   - Requer senha de administração\n"
+            "   - Pressione Enter no campo de senha para validar\n"
             "   - Opção para redefinir senha caso esquecida\n\n"
             "8. ATUALIZAÇÕES:\n"
             "   - Clique em 'Verificar Atualizações' no rodapé\n"
