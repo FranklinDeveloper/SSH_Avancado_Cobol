@@ -18,11 +18,14 @@ import urllib.request
 import shutil
 import subprocess
 
+# Verificar se está rodando como executável empacotado (exe)
+IS_EXE = getattr(sys, 'frozen', False)
+
 # Versão do software - importante para atualizações
 SOFTWARE_VERSION = "1.1.0"
 
 # Oculta o console ao iniciar o .exe (Windows apenas)
-if sys.platform.startswith('win'):
+if sys.platform.startswith('win') and IS_EXE:
     console_handle = ctypes.windll.kernel32.GetConsoleWindow()
     if console_handle:
         ctypes.windll.user32.ShowWindow(console_handle, 0)
@@ -136,8 +139,8 @@ class SSHClientGUI:
         self.root = root
         self.root.title(f"Gerenciador SSH Avançado v{SOFTWARE_VERSION}")
         
-        # Posicionar no topo da tela
-        self.root.geometry("950x600+0+0")
+        # Tamanho inicial aumentado para melhor visualização
+        self.root.geometry("950x600")
         
         # Configuração de expansão para a janela principal
         self.root.rowconfigure(0, weight=1)
@@ -161,16 +164,6 @@ class SSHClientGUI:
             'users': ['root', 'zabbix', 'sshd', 'postfix', 'nscd', 'message+', 'usertra+'],
             'commands': []  # Pode ser estendido
         }
-        
-        # Configuração de senha e URL de atualização
-        self.admin_config_file = os.path.join(os.path.expanduser("~"), ".ssh_tool_config")
-        # Senha master padrão
-        self.DEFAULT_MASTER_PASSWORD = "12345678"
-        # URL padrão de atualização
-        self.DEFAULT_UPDATE_URL = "https://raw.githubusercontent.com/seu-usuario/seu-repositorio/main/version.json"
-        
-        # Carregar configuração do administrador
-        self.admin_config = self.load_admin_config()
         
         # Configurar estilo visual moderno
         self.style = ttk.Style()
@@ -269,14 +262,13 @@ class SSHClientGUI:
         btn_frame = ttk.Frame(conn_frame)
         btn_frame.grid(row=0, column=8, padx=(10,3), pady=2, sticky=tk.E)
         
-        # Aumentar largura dos botões para acomodar texto completo
         self.connect_btn = ttk.Button(btn_frame, text="Conectar", 
-                                     command=self.connect, style='Green.TButton', width=12)
+                                     command=self.connect, style='Green.TButton', width=9)
         self.connect_btn.pack(side=tk.LEFT, padx=2)
         
         self.disconnect_btn = ttk.Button(btn_frame, text="Desconectar", 
                                         command=self.disconnect, state=tk.DISABLED,
-                                        style='Red.TButton', width=14)
+                                        style='Red.TButton', width=10)
         self.disconnect_btn.pack(side=tk.LEFT, padx=2)
         
         # Botão Administração
@@ -285,7 +277,7 @@ class SSHClientGUI:
             text="Administrador",
             command=self.show_admin_dialog,
             style='Blue.TButton',
-            width=16
+            width=14
         )
         self.admin_btn.pack(side=tk.LEFT, padx=2)
         
@@ -294,7 +286,7 @@ class SSHClientGUI:
             btn_frame, 
             text="Ajuda?",
             command=self.show_help,
-            width=8
+            width=6
         )
         help_btn.pack(side=tk.LEFT, padx=2)
         
@@ -377,7 +369,7 @@ class SSHClientGUI:
             text="Derrubar PIDs Selecionados", 
             command=self.kill_pids, 
             style='Red.TButton',
-            width=24
+            width=20
         )
         self.kill_button.pack(side=tk.LEFT, padx=2)
         
@@ -474,7 +466,7 @@ class SSHClientGUI:
             text="Derrubar PIDs Selecionados", 
             command=self.derrubar_pid_selecionado,
             style='Red.TButton',
-            width=24
+            width=20
         )
         self.derrubar_pid_selecionado_btn.pack(side=tk.LEFT, padx=2)
         
@@ -577,7 +569,7 @@ class SSHClientGUI:
             text="Derrubar PIDs Selecionados", 
             command=self.derrubar_pid_tela,
             style='Red.TButton',
-            width=24
+            width=20
         )
         self.derrubar_pid_tela_btn.pack(side=tk.LEFT, padx=2)
         
@@ -738,6 +730,16 @@ class SSHClientGUI:
         self.matricula_output = ""
         self.capturing_tela = False
         self.tela_output = ""
+        
+        # Configuração de senha e URL de atualização
+        self.admin_config_file = os.path.join(os.path.expanduser("~"), ".ssh_tool_config")
+        
+        # CORREÇÃO: DEFINIR CONSTANTES PRIMEIRO
+        self.DEFAULT_UPDATE_URL = "https://raw.githubusercontent.com/seu-usuario/seu-repositorio/main/version.json"
+        self.DEFAULT_MASTER_PASSWORD = "Carro@#356074"
+        
+        # Agora carregar a configuração
+        self.admin_config = self.load_admin_config()
 
     def load_admin_config(self):
         """Carrega a configuração do administrador do arquivo"""
@@ -829,13 +831,6 @@ class SSHClientGUI:
         top.transient(self.root)
         top.grab_set()
         
-        # Aplicar ícone se disponível
-        if self.temp_ico_file and os.path.exists(self.temp_ico_file):
-            try:
-                top.iconbitmap(self.temp_ico_file)
-            except Exception:
-                pass
-        
         # Frame principal
         main_frame = ttk.Frame(top, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -871,8 +866,6 @@ class SSHClientGUI:
         senha_entry = ttk.Entry(auth_frame, textvariable=self.senha_var, show="*", width=15)
         senha_entry.pack(side=tk.LEFT, padx=(0,5))
         senha_entry.focus_set()
-        # Adicionar evento Enter para validar senha
-        senha_entry.bind("<Return>", lambda event: check_password())
         
         def check_password():
             admin_type = self.admin_type_var.get()
@@ -1034,7 +1027,12 @@ class SSHClientGUI:
             with urllib.request.urlopen(update_url, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 latest_version = data.get('version')
-                download_url = data.get('download_url')
+                
+                # Selecionar URL de download apropriada
+                if IS_EXE:
+                    download_url = data.get('exe_url')
+                else:
+                    download_url = data.get('py_url')
                 
                 if latest_version and download_url:
                     # Comparar versões
@@ -1092,23 +1090,41 @@ class SSHClientGUI:
         try:
             # Criar diretório temporário
             temp_dir = tempfile.mkdtemp()
-            temp_file = os.path.join(temp_dir, "update.exe")
+            
+            # Nome do arquivo temporário
+            if IS_EXE:
+                temp_file = os.path.join(temp_dir, "update.exe")
+            else:
+                temp_file = os.path.join(temp_dir, "update.py")
             
             # Baixar a nova versão
             with urllib.request.urlopen(download_url, timeout=30) as response:
                 with open(temp_file, 'wb') as out_file:
                     shutil.copyfileobj(response, out_file)
             
-            # Criar script para atualização (Windows)
+            # Se for Windows, criar um script .bat para atualizar
             if sys.platform.startswith('win'):
-                script = f"""
-                @echo off
-                timeout /t 3 /nobreak >nul
-                move /Y "{temp_file}" "{sys.argv[0]}" 
-                start "" "{sys.argv[0]}"
-                rmdir /s /q "{temp_dir}"
-                del "%~f0"
-                """
+                # Determinar o caminho do executável/script atual
+                current_path = os.path.abspath(sys.argv[0])
+                
+                # Criar script de atualização
+                script = f"""@echo off
+timeout /t 3 /nobreak >nul
+"""
+                # Se for um executável, podemos simplesmente substituir
+                if IS_EXE:
+                    script += f'taskkill /F /IM "{os.path.basename(current_path)}" >nul 2>&1\n'
+                    script += f'move /Y "{temp_file}" "{current_path}"\n'
+                    script += f'start "" "{current_path}"\n'
+                else:
+                    # Para script Python, precisamos matar o processo Python que está executando este script
+                    script += f'taskkill /F /IM "python.exe" >nul 2>&1\n'
+                    script += f'del /F /Q "{current_path}"\n'
+                    script += f'move /Y "{temp_file}" "{current_path}"\n'
+                    script += f'start "" "{current_path}"\n'
+                
+                script += f'rmdir /s /q "{temp_dir}"\n'
+                script += 'del "%~f0"'
                 
                 script_file = os.path.join(temp_dir, "update.bat")
                 with open(script_file, 'w') as f:
@@ -1118,6 +1134,7 @@ class SSHClientGUI:
                 subprocess.Popen([script_file], shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
                 self.safe_close()
             else:
+                # Para outros sistemas, apenas informar o usuário
                 messagebox.showinfo(
                     "Atualização Baixada",
                     f"A nova versão foi baixada em:\n{temp_file}\n"
@@ -1196,18 +1213,11 @@ class SSHClientGUI:
         help_window.transient(self.root)
         help_window.grab_set()
         
-        # Aplicar ícone se disponível
-        if self.temp_ico_file and os.path.exists(self.temp_ico_file):
-            try:
-                help_window.iconbitmap(self.temp_ico_file)
-            except Exception:
-                pass
-        
         # Frame principal
         main_frame = ttk.Frame(help_window)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Texto de ajuda atualizado
+        # Texto de ajuda
         instructions = (
             "INSTRUÇÕES DE USO - GERENCIADOR SSH AVANÇADO\n\n"
             "1. CONEXÃO:\n"
@@ -1218,18 +1228,15 @@ class SSHClientGUI:
             "   - Lista todos os processos ativos do servidor\n"
             "   - Filtros automáticos bloqueiam usuários críticos\n"
             "   - Use os filtros visíveis para refinar a busca\n"
-            "   - Selecione PIDs manualmente ou na tabela\n"
-            "   - Pressione Enter no campo de PIDs para derrubar selecionados\n\n"
+            "   - Selecione PIDs manualmente ou na tabela\n\n"
             "3. ABA 'DERRUBAR MATRÍCULA E ROMANEIO':\n"
             "   - Consulta processos relacionados a matrículas ou romaneios\n"
             "   - Busca em /d/work por arquivos com o padrão especificado\n"
-            "   - Resultados mostrados em tabela com usuário, PID e nome\n"
-            "   - Pressione Enter no campo de consulta para iniciar busca\n\n"
+            "   - Resultados mostrados em tabela com usuário, PID e nome\n\n"
             "4. ABA 'CONSULTAR TELA':\n"
             "   - Consulta processos por número de tela ou romaneio\n"
             "   - Busca em /d/dados por arquivos com o padrão especificado\n"
-            "   - Use '*' para listar todas as telas/romaneios\n"
-            "   - Pressione Enter no campo de consulta para iniciar busca\n\n"
+            "   - Use '*' para listar todas as telas/romaneios\n\n"
             "5. ABA 'TERMINAL INTERATIVO':\n"
             "   - Sessão SSH interativa em tempo real\n"
             "   - Execute comandos diretamente no servidor\n"
@@ -1240,7 +1247,6 @@ class SSHClientGUI:
             "7. BOTÃO 'ADMINISTRADOR':\n"
             "   - Configura filtros permanentes de usuários/comandos\n"
             "   - Requer senha de administração\n"
-            "   - Pressione Enter no campo de senha para validar\n"
             "   - Opção para redefinir senha caso esquecida\n\n"
             "8. ATUALIZAÇÕES:\n"
             "   - Clique em 'Verificar Atualizações' no rodapé\n"
